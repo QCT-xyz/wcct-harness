@@ -1,5 +1,7 @@
 # WCCT Notebook Harness and API
 
+[![publish](https://github.com/QCT-xyz/wcct-harness/actions/workflows/publish.yml/badge.svg)](https://github.com/QCT-xyz/wcct-harness/actions/workflows/publish.yml)
+
 Minimal, reproducible WCCT diagnostics with six notebooks, an ONNX Poisson solver served via FastAPI, a small Dash UI, smoke tests, Docker, and Cloud Run deploys. Everything has pass criteria and runs headless.
 
 ---
