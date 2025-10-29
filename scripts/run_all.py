@@ -11,7 +11,11 @@ for name in names:
     path = os.path.join(nbdir, name)
     out = os.path.join(outdir, name)
     nb = nbf.read(path, as_version=4)
-    client = NotebookClient(nb, timeout=600, kernel_name="wcct", resources={"metadata": {"path": nbdir}})
+    from jupyter_client.kernelspec import KernelSpecManager
+    kn="wcct"
+    if kn not in KernelSpecManager().get_all_specs():
+        kn="python3"
+    client = NotebookClient(nb, timeout=600, kernel_name=kn, resources={"metadata": {"path": nbdir}})
     ok = True
     err = ""
     try:
