@@ -25,33 +25,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-
       - name: Install deps
         run: |
           python -m pip install -U pip
           python -m pip install -r requirements.txt nbclient pytest
-
+      - name: Register wcct kernel
+        run: python -m ipykernel install --user --name wcct --display-name "Python (wcct)"
       - name: Run notebooks and tests
         run: |
           python scripts/run_all.py
           pytest
-
       - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/320060026697/locations/global/workloadIdentityPools/github/providers/github-provider
           service_account: gh-actions-deployer@decent-surf-467802-h9.iam.gserviceaccount.com
-
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
-
       - name: Configure Artifact Registry auth
         run: gcloud auth configure-docker $GCP_REGION-docker.pkg.dev -q
-
       - name: Build and push images
         env:
           API_IMG: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/wcct-api:${{ github.sha }}
@@ -63,7 +58,6 @@ jobs:
           docker push "$UI_IMG"
           echo "API_IMG=$API_IMG" >> $GITHUB_ENV
           echo "UI_IMG=$UI_IMG" >> $GITHUB_ENV
-
       - name: Deploy API
         run: |
           gcloud run deploy "$API_SERVICE" \
@@ -76,12 +70,10 @@ jobs:
             --cpu 1 --memory 1Gi \
             --max-instances 3 --min-instances 1 \
             --timeout 300
-
       - name: Get API URL
         run: |
           API_URL=$(gcloud run services describe "$API_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
           echo "API_URL=$API_URL" >> $GITHUB_ENV
-
       - name: Deploy UI
         run: |
           gcloud run deploy "$UI_SERVICE" \
@@ -95,7 +87,6 @@ jobs:
             --cpu 1 --memory 1Gi \
             --max-instances 3 \
             --timeout 300
-
       - name: Show endpoints
         run: |
           echo "API_URL=$API_URL"
