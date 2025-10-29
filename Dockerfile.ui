@@ -1,0 +1,11 @@
+FROM python:3.13-slim
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY requirements.ui.txt .
+RUN python -m pip install -U pip && python -m pip install --only-binary=:all: -r requirements.ui.txt
+COPY services/ui_app ./services/ui_app
+EXPOSE 8050
+ENV API_BASE=""
+ENV API_AUDIENCE=""
+CMD ["python", "services/ui_app/app.py"]

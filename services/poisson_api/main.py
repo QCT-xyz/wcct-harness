@@ -38,8 +38,9 @@ def build_rb_sor_model(omega: float = 1.9):
     m.ir_version = 11
     return m
 
-def rb_sor_np(U, F, R, B, steps: int, omega: float):
+def rb_sor_np_hist(U, F, R, B, steps: int, omega: float, u_true):
     U = U.copy()
+    hist = []
     for _ in range(steps):
         S = np.zeros_like(U, dtype=np.float32)
         S[1:-1,1:-1] = U[:-2,1:-1] + U[2:,1:-1] + U[1:-1,:-2] + U[1:-1,2:]
@@ -49,7 +50,10 @@ def rb_sor_np(U, F, R, B, steps: int, omega: float):
         S[1:-1,1:-1] = U[:-2,1:-1] + U[2:,1:-1] + U[1:-1,:-2] + U[1:-1,2:]
         J = 0.25*(S - F)
         U = U + B*omega*(J - U)
-    return U
+        num = np.linalg.norm((U - u_true).ravel())
+        den = np.linalg.norm(u_true.ravel()) + 1e-12
+        hist.append(float(num/den))
+    return U, hist
 
 ART = (Path(__file__).resolve().parents[2] / "artifacts")
 ART.mkdir(parents=True, exist_ok=True)
@@ -66,16 +70,23 @@ class SolveOut(BaseModel):
     u_std: float
     iters: int
     model_path: str
+    hist: list[float]
 
 class XiIn(BaseModel):
     N: int = 96
-    T: int = 120
+    T: int = 150
     lam: float = 0.2
     m2: float = 0.0
     dt: float = 0.1
     seed: int = 42
 
 class XiOut(BaseModel):
+    xi_final: float
+    xi_mean: float
+    steps: int
+
+class XiSeriesOut(BaseModel):
+    xis: list[float]
     xi_final: float
     xi_mean: float
     steps: int
@@ -104,7 +115,7 @@ def solve(x: SolveIn):
             else:
                 B[i,j] = 1.0
     U0 = np.zeros_like(u_true, dtype=np.float32)
-    U_np = rb_sor_np(U0, F, R, B, s, om)
+    U_np, hist = rb_sor_np_hist(U0, F, R, B, s, om, u_true)
     model = build_rb_sor_model(om)
     p = ART / "poisson_jacobi.onnx"
     with open(str(p), "wb") as f:
@@ -119,7 +130,7 @@ def solve(x: SolveIn):
     U_ort = U[0,0]
     rel_parity = float(np.linalg.norm((U_np - U_ort).ravel())/(np.linalg.norm(U_np.ravel()) + 1e-12))
     rel_true = float(np.linalg.norm((U_np - u_true).ravel())/(np.linalg.norm(u_true.ravel()) + 1e-12))
-    return {"onnx_parity": rel_parity, "rel_to_truth": rel_true, "u_mean": float(U_np.mean()), "u_std": float(U_np.std()), "iters": s, "model_path": str(p)}
+    return {"onnx_parity": rel_parity, "rel_to_truth": rel_true, "u_mean": float(U_np.mean()), "u_std": float(U_np.std()), "iters": s, "model_path": str(p), "hist": hist}
 
 @app.post("/v1/xi/step", response_model=XiOut)
 def xi_step(x: XiIn):
@@ -133,3 +144,16 @@ def xi_step(x: XiIn):
         xi = np.abs(g.mean())
         xis.append(float(xi))
     return {"xi_final": float(xis[-1]), "xi_mean": float(np.mean(xis)), "steps": x.T}
+
+@app.post("/v1/xi/series", response_model=XiSeriesOut)
+def xi_series(x: XiIn):
+    np.random.seed(x.seed)
+    phi = np.random.randn(x.N, x.N).astype(np.float32)*0.05
+    xis = []
+    for _ in range(x.T):
+        lap = np.roll(phi,1,0)+np.roll(phi,-1,0)+np.roll(phi,1,1)+np.roll(phi,-1,1)-4*phi
+        phi = phi + x.dt*(lap - x.m2*phi - x.lam*phi**3)
+        g = np.exp(1j*np.angle(phi + 1e-9))
+        xi = np.abs(g.mean())
+        xis.append(float(xi))
+    return {"xis": xis, "xi_final": float(xis[-1]), "xi_mean": float(np.mean(xis)), "steps": x.T}

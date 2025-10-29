@@ -1,0 +1,12 @@
+steps:
+- name: gcr.io/cloud-builders/docker
+  args: ['build','-t','$_API_IMG','-f','Dockerfile','.']
+- name: gcr.io/cloud-builders/docker
+  args: ['push','$_API_IMG']
+- name: gcr.io/cloud-builders/docker
+  args: ['build','-t','$_UI_IMG','-f','Dockerfile.ui','.']
+- name: gcr.io/cloud-builders/docker
+  args: ['push','$_UI_IMG']
+images:
+- '$_API_IMG'
+- '$_UI_IMG'
